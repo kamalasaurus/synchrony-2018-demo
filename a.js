@@ -1,29 +1,28 @@
-let createRectangles = (W, gl, col, index, width, height) => {
+let createRectangles = (gl, col, transloc, scale, positions, index, time) => {
   // add transformations to the coords to get rotations in glsl?  start doing them here first
   let primitiveType = gl.TRIANGLES
   let offset = 0
   let count = 6
 
-  let x1 = ((index * 60) % W) + 10
-  let x2 = x1 + width
-  let y1 = (Math.floor(index * 60 / W)) * 60 + 10
-  let y2 = y1 + height
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW)
 
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-     x1, y1,
-     x2, y1,
-     x1, y2,
-     x1, y2,
-     x2, y1,
-     x2, y2]), gl.STATIC_DRAW)
   gl.uniform4f(col, Math.random(), Math.random(), Math.random(), 1)
+  gl.uniform2fv(col, [time, 100 * Math.random()])
+  gl.uniform1f(scale, time)
+  gl.uniform1f(transloc, index)
   gl.drawArrays(primitiveType, offset, count)
 
 }
 
-let render = (gl, program, buf, loc, uni, col) => {
-  const W = gl.canvas.width;
+let update = (gl, col, transloc, scale, positions, time) => {
+  console.log(time);
+  for (i = 0; i < 100; i++) {
+    createRectangles(gl, col, transloc, scale, positions, i, time)
+  }
+  requestAnimationFrame(update.bind(null, gl, col, transloc, scale, positions))
+}
 
+let render = (gl, program, buf, loc, uni, col, transloc, scale) => {
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
   gl.clearColor(0, 0, 0, 0)
@@ -49,19 +48,32 @@ let render = (gl, program, buf, loc, uni, col) => {
     offset
   )
 
-  for (i = 0; i < 100; i++) {
-    createRectangles(W, gl, col, i, 10, 50)
-  }
+  let x1 = 10
+  let x2 = x1 + 10
+  let y1 = 10
+  let y2 = y1 + 50
 
+  let positions = [
+    x1, y1,
+    x2, y1,
+    x1, y2,
+    x1, y2,
+    x2, y1,
+    x2, y2
+  ]
+
+  requestAnimationFrame(update.bind(null, gl, col, transloc, scale, positions))
 }
 
 let initialize = (gl, program) => {
   let loc = gl.getAttribLocation(program, 'a_position')
+  let transloc = gl.getUniformLocation(program, "u_translation")
   let uni = gl.getUniformLocation(program, 'u_resolution')
   let col = gl.getUniformLocation(program, 'u_color')
+  let scale = gl.getUniformLocation(program, 'u_scale')
   let buf = gl.createBuffer()
 
-  render(gl, program, buf, loc, uni, col)
+  render(gl, program, buf, loc, uni, col, transloc, scale)
 }
 
 (() => {
