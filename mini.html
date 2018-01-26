@@ -1,0 +1,150 @@
+<body onload="
+  shaders = [
+  `
+  attribute vec2 a_position;
+  uniform float u_translation;
+  uniform float u_scale;
+  uniform vec2 u_resolution;
+
+  void main() {
+    vec2 preTransPosition = a_position + vec2(mod(u_translation * 60.0, 750.0), floor(u_translation * 60.0 / 750.0) * 60.0);
+    vec2 preZeroToOne = preTransPosition / u_resolution;
+
+    float scax = tan(u_scale / 3000.0 + preZeroToOne.x * 2.0 * 3.14) * 2.0 - 1.0;
+    float pert = 0.3 * (sin(u_scale / 1500.0 + preZeroToOne.y * 2.0 * 3.14) * 2.0 - 1.0);
+    vec2 scaledPosition = a_position * vec2((scax + pert), (scax + pert));
+    vec2 transPosition = scaledPosition + vec2(mod(u_translation * 60.0, 750.0), floor(u_translation * 60.0 / 750.0) * 60.0);
+    vec2 zeroToOne = transPosition / u_resolution;
+    vec2 zeroToTwo = zeroToOne * 2.0;
+    vec2 clipSpace = zeroToTwo - 1.0;
+    vec2 clipPosition = clipSpace * vec2(1, -1);
+    gl_Position = vec4(clipPosition, 0, 1);
+  }
+  `,
+  `
+    precision mediump float;
+    uniform float u_color;
+    uniform float u_color_position;
+
+    void main() {
+      vec2 preTransPosition = vec2(mod(u_color_position * 60.0, 750.0), floor(u_color_position * 60.0 / 750.0) * 60.0);
+      float rando = abs(sin(u_color/1000.0 + preTransPosition.x));
+      float no2 = abs(cos(u_color/2000.0 - preTransPosition.y));
+      float no3 = abs(sin(u_color/3000.0));
+      gl_FragColor = vec4(0.8 * rando, 0.8 * (rando + no2 / 2.0), 0.8 * (rando + no3 / 2.0), 1.0);
+    }
+  `]
+  function makeFreq(note, offs) {
+    osc.frequency.setValueAtTime(val * Math.pow(2, note/12), ctx.currentTime + offs)
+  }
+  function makeNoise() {
+    ctx = new AudioContext()
+    gain = ctx.createGain()
+    gain.gain.value = 0.025;
+    osc = ctx.createOscillator()
+
+    osc.type = 'triangle'
+
+    val = 830.61
+
+    osc.frequency.value = val * Math.pow(2, 4/12)
+
+    makeFreq(7, 0.9)
+    makeFreq(4, 1.35)
+    makeFreq(5, 1.8)
+    makeFreq(4, 2.25)
+    makeFreq(9, 2.7)
+    makeFreq(5, 3.15)
+    makeFreq(7, 3.6)
+    makeFreq(9, 4.15)
+    makeFreq(2, 4.5)
+
+    gain.connect(ctx.destination)
+    osc.connect(gain)
+    osc.start(0)
+    osc.stop(ctx.currentTime + 4.95)
+
+    osc.addEventListener('ended', makeNoise)
+  }
+  function createRectangles(gl, col, transloc, scale, colPos, positions, index, time) {
+    primitiveType = gl.TRIANGLES
+    offset = 0
+    count = 6
+
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW)
+
+    gl.uniform1f(col, time)
+    gl.uniform1f(colPos, index)
+    gl.uniform1f(scale, time)
+    gl.uniform1f(transloc, index)
+    gl.drawArrays(primitiveType, offset, count)
+  }
+  function update(gl, col, transloc, scale, colPos, positions, time) {
+    for (i = 0; i < 100; i++) {
+      createRectangles(gl, col, transloc, scale, colPos, positions, i, time)
+    }
+    requestAnimationFrame(update.bind(null, gl, col, transloc, scale, colPos, positions))
+  }
+  (function() {
+    gl = a.getContext('webgl')
+    program = gl.createProgram();
+    [
+      gl.createShader(gl.VERTEX_SHADER),
+      gl.createShader(gl.FRAGMENT_SHADER)
+    ].forEach(function(s, i) {
+        src = shaders[i]
+        gl.shaderSource(s, src)
+        gl.compileShader(s)
+        gl.attachShader(program, s)
+    })
+    gl.linkProgram(program)
+    loc = gl.getAttribLocation(program, 'a_position')
+    transloc = gl.getUniformLocation(program, 'u_translation')
+    uni = gl.getUniformLocation(program, 'u_resolution')
+    col = gl.getUniformLocation(program, 'u_color')
+    scale = gl.getUniformLocation(program, 'u_scale')
+    colPos = gl.getUniformLocation(program, 'u_color_position')
+    buf = gl.createBuffer()
+
+    makeNoise()
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+    gl.clearColor(0, 0, 0, 0)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+    gl.useProgram(program)
+    gl.uniform2f(uni, gl.canvas.width, gl.canvas.height);
+    gl.enableVertexAttribArray(loc)
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+
+    size = 2
+    type = gl.FLOAT
+    normalize = false
+    stride = 0
+    offset = 0
+
+    gl.vertexAttribPointer(
+      loc,
+      size,
+      type,
+      normalize,
+      stride,
+      offset
+    )
+
+    x1 = 10
+    x2 = x1 + 10
+    y1 = 10
+    y2 = y1 + 50
+
+    positions = [
+      x1, y1,
+      x2, y1,
+      x1, y2,
+      x1, y2,
+      x2, y1,
+      x2, y2
+    ]
+
+    requestAnimationFrame(update.bind(null, gl, col, transloc, scale, colPos, positions))
+  })()"
+><canvas id=a height=500 width=750>
